@@ -32,10 +32,10 @@ def run_full_project():
     ]
     session.add_all(perf_data)
 
-    print("Decriptare fișier OpenSSL pentru verificare...")
+    print("Decriptare fisier OpenSSL pentru verificare...")
     CryptoManager.decrypt_openssl_aes("date.enc_ssl", "reconstituire.txt", "pass123")
 
-    print("Generare chei și criptare RSA...")
+    print("Generare chei si criptare RSA...")
     CryptoManager.generate_rsa_keys()
     session.add(Cheie(nume_cheie="RSA_Public", path_cheie="public.pem", algoritm_id=rsa_ref.id))
     
@@ -50,7 +50,7 @@ def run_full_project():
     print(f"AES OpenSSL: {t_ssl:.4f}s | Memorie: {m_ssl:.4f}MB")
     print(f"AES PyCa:    {t_py:.4f}s | Memorie: {m_py:.4f}MB")
     print(f"RSA OpenSSL: {t_rsa:.4f}s | Memorie: {m_rsa:.4f}MB")
-    print("\nToate cerintele au fost indeplinite și salvate in DB.")
+    print("\nToate cerintele au fost indeplinite si salvate in DB.")
 
 if __name__ == "__main__":
     run_full_project()
