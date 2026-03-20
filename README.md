@@ -14,7 +14,7 @@ Acest proiect reprezintă o soluție software integrată pentru gestionarea secu
 ## 2. Arhitectura Sistemului
 Diagrama de mai jos ilustrează fluxul logic și interacțiunea dintre modulele sistemului:
 
-![Arhitectura Sistemului](image_c330b0.jpg)
+![Arhitectura Sistemului](arhitecture-app.png)
 
 Proiectul utilizează o structură modulară pentru separarea responsabilităților:
 * **`database.py` (Persistence Layer):** Gestionează modelele ORM (SQLAlchemy) și interacțiunea cu baza de date SQLite (`key_manager.db`). Include funcțiile CRUD: `create_record`, `read_all`, `update_performance_time` și `delete_record`.
