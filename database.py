@@ -38,3 +38,26 @@ engine = create_engine('sqlite:///key_manager.db')
 Base.metadata.create_all(engine)
 Session = sessionmaker(bind=engine)
 session = Session()
+
+def create_record(obj):
+    """Operatie CREATE: Adauga orice obiect in DB."""
+    session.add(obj)
+    session.commit()
+    return obj
+
+def read_all(model):
+    """Operatie READ: Returneaza toate inregistrarile dintr-un tabel."""
+    return session.query(model).all()
+
+def update_performance_time(perf_id, new_time):
+    """Operatie UPDATE: Modifica timpul unei inregistrari de performanta."""
+    record = session.query(Performanta).filter_by(id=perf_id).first()
+    if record:
+        record.timp_executie = new_time
+        session.commit()
+    return record
+
+def delete_record(obj):
+    """Operatie DELETE: sterge un obiect din DB."""
+    session.delete(obj)
+    session.commit()

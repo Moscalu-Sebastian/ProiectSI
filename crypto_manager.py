@@ -18,11 +18,9 @@ class CryptoManager:
     def encrypt_openssl_aes(input_file, output_file, password):
         mem_start = CryptoManager.get_memory_usage()
         start_time = time.time()
-        
         cmd = [OPENSSL_PATH, "enc", "-aes-256-cbc", "-salt", "-in", input_file, 
                "-out", output_file, "-k", password, "-pbkdf2"]
         subprocess.run(cmd, check=True, capture_output=True)
-        
         return time.time() - start_time, CryptoManager.get_memory_usage() - mem_start
 
     @staticmethod
@@ -35,7 +33,6 @@ class CryptoManager:
     def encrypt_pyca_aes(input_file, output_file, key):
         mem_start = CryptoManager.get_memory_usage()
         start_time = time.time()
-        
         iv = os.urandom(16)
         cipher = Cipher(algorithms.AES(key), modes.CBC(iv), backend=default_backend())
         encryptor = cipher.encryptor()
@@ -45,7 +42,6 @@ class CryptoManager:
             f_out.write(iv)
             padded_data = padder.update(f_in.read()) + padder.finalize()
             f_out.write(encryptor.update(padded_data) + encryptor.finalize())
-            
         return time.time() - start_time, CryptoManager.get_memory_usage() - mem_start
 
     @staticmethod
