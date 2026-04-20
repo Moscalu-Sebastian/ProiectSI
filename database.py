@@ -23,6 +23,8 @@ class FisierManagement(Base):
     nume_original = Column(String)
     path_criptat = Column(String)
     dimensiune_bytes = Column(Integer)
+    status = Column(String)
+    hash_original = Column(String)
 
 class Performanta(Base):
     __tablename__ = 'performante'
@@ -31,8 +33,9 @@ class Performanta(Base):
     operatie = Column(String)
     timp_executie = Column(Float)
     memorie_utilizata = Column(Float)
+    viteza_mb_s = Column(Float)
     fisier_id = Column(Integer, ForeignKey('fisiere.id'))
-    algoritm_id = Column(Integer, ForeignKey('algoritmi.id'))
+    algoritm_nume = Column(String, ForeignKey('algoritmi.nume'))
 
 engine = create_engine('sqlite:///key_manager.db')
 Base.metadata.create_all(engine)

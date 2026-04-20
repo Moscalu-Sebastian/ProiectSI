@@ -52,10 +52,14 @@ class CryptoManager:
                         check=True, capture_output=True)
 
     @staticmethod
-    def encrypt_openssl_rsa(input_file, output_file):
+    def encrypt_openssl_rsa(input_file, output_file, key_path):
         mem_start = CryptoManager.get_memory_usage()
         start_time = time.time()
-        cmd = [OPENSSL_PATH, "pkeyutl", "-encrypt", "-pubin", "-inkey", "public.pem", 
+        cmd = [OPENSSL_PATH, "pkeyutl", "-encrypt", "-pubin", "-inkey", key_path, 
                "-in", input_file, "-out", output_file]
-        subprocess.run(cmd, check=True, capture_output=True)
+        try:
+            subprocess.run(cmd, check=True, capture_output=True, text=True)
+        except subprocess.CalledProcessError as e:
+            raise Exception(f"Eroare OpenSSL: {e.stderr}")
+            
         return time.time() - start_time, CryptoManager.get_memory_usage() - mem_start
