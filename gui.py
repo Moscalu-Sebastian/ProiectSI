@@ -61,11 +61,14 @@ class CryptoApp:
         frame_setari.pack(fill="x", pady=(0, 8))
 
         ttk.Label(frame_setari, text="Framework:").grid(row=0, column=0, sticky="w", pady=4)
+        framework_values = ["OpenSSL", "PyCa"]
+        if CryptoManager.has_pycryptodome():
+            framework_values.append("PyCryptodome")
         self.combo_framework = ttk.Combobox(
             frame_setari,
             textvariable=self.framework_var,
             state="readonly",
-            values=["OpenSSL", "PyCa"],
+            values=framework_values,
             width=20,
         )
         self.combo_framework.grid(row=0, column=1, padx=5, pady=4, sticky="w")
@@ -154,13 +157,24 @@ class CryptoApp:
 
         self.performance_tree = self._create_tree(
             perf_tab,
-            ("id", "framework", "algoritm", "operatie", "timp", "memorie", "viteza", "hash_ok"),
+            (
+                "id",
+                "framework",
+                "algoritm",
+                "operatie",
+                "timp",
+                "timp_octet",
+                "memorie",
+                "viteza",
+                "hash_ok",
+            ),
             {
                 "id": 50,
                 "framework": 100,
                 "algoritm": 90,
                 "operatie": 100,
                 "timp": 110,
+                "timp_octet": 120,
                 "memorie": 110,
                 "viteza": 110,
                 "hash_ok": 90,
@@ -180,7 +194,7 @@ class CryptoApp:
         tree.configure(yscrollcommand=scrollbar.set)
 
         for column in columns:
-            tree.heading(column, text=column.capitalize())
+            tree.heading(column, text=column.replace("_", " ").capitalize())
             tree.column(column, width=widths.get(column, 120), anchor="w")
 
         tree.pack(side="left", fill="both", expand=True)
@@ -257,6 +271,7 @@ class CryptoApp:
                     record.algoritm_nume,
                     record.operatie,
                     f"{record.timp_executie:.4f} s",
+                    self._format_time_per_byte(record.timp_per_octet),
                     f"{record.memorie_utilizata:.4f} MB",
                     self._format_speed(record.viteza_mb_s),
                     "Da" if record.hash_verificat else "Nu",
@@ -338,7 +353,7 @@ class CryptoApp:
 
         ttk.Label(
             popup,
-            text="Poti folosi acelasi fisier pentru testele OpenSSL si PyCa.",
+            text="Poti folosi acelasi fisier pentru testele OpenSSL, PyCa si PyCryptodome.",
         ).pack(pady=4)
 
         ttk.Label(popup, text="Continut:").pack(pady=6)
@@ -498,15 +513,33 @@ class CryptoApp:
         if algoritm == "RSA" and operatie == "Decriptare" and cheie.tip_cheie != "private":
             raise ValueError("Pentru decriptare RSA trebuie selectata o cheie privata.")
 
-    def _build_encrypted_output_path(self, input_path, framework, algoritm):
-        path = Path(input_path)
-        return str(path.with_name(f"{path.name}_{framework.lower()}_{algoritm.lower()}.enc"))
+    def _slugify_output_label(self, value):
+        return value.strip().lower().replace(" ", "_")
+
+    def _get_original_reference_path(self, source_record, fallback_path):
+        original_path = Path(source_record.nume_original) if source_record else Path(fallback_path)
+        if not original_path.suffix:
+            original_path = original_path.with_suffix(".bin")
+        return original_path
+
+    def _build_encrypted_output_path(self, input_path, source_record, framework, algoritm):
+        original_path = self._get_original_reference_path(source_record, input_path)
+        framework_label = self._slugify_output_label(framework)
+        algoritm_label = self._slugify_output_label(algoritm)
+        return str(
+            original_path.with_name(
+                f"{original_path.stem}__criptat__{framework_label}__{algoritm_label}.enc"
+            )
+        )
 
     def _build_decrypted_output_path(self, input_path, source_record, framework, algoritm):
-        path = Path(input_path)
-        original_suffix = Path(source_record.nume_original).suffix or ".bin"
+        original_path = self._get_original_reference_path(source_record, input_path)
+        framework_label = self._slugify_output_label(framework)
+        algoritm_label = self._slugify_output_label(algoritm)
         return str(
-            path.with_name(f"{path.stem}_{framework.lower()}_{algoritm.lower()}_decrypted{original_suffix}")
+            original_path.with_name(
+                f"{original_path.stem}__decriptat__{framework_label}__{algoritm_label}{original_path.suffix}"
+            )
         )
 
     def _execute_crypto(self, operatie):
@@ -523,7 +556,7 @@ class CryptoApp:
         source_hash = source_record.hash_original or source_record.hash_curent or self.calculeaza_hash(filepath)
 
         if operatie == "Criptare":
-            output_path = self._build_encrypted_output_path(filepath, framework, algoritm)
+            output_path = self._build_encrypted_output_path(filepath, source_record, framework, algoritm)
             self._run_encrypt(framework, algoritm, filepath, output_path, cheie)
             hash_verificat = False
             detalii = f"Fisier criptat cu {framework} folosind {algoritm}."
@@ -544,6 +577,7 @@ class CryptoApp:
         dimensiune = os.path.getsize(filepath)
         timp, memorie = self.last_metrics
         viteza = (dimensiune / (1024 * 1024)) / timp if timp > 0 else 0.0
+        timp_per_octet = timp / dimensiune if dimensiune > 0 else 0.0
         hash_curent = self.calculeaza_hash(output_path)
 
         rezultat_record = register_managed_file(
@@ -559,6 +593,7 @@ class CryptoApp:
             framework=framework,
             operatie=operatie,
             timp_executie=timp,
+            timp_per_octet=timp_per_octet,
             memorie_utilizata=memorie,
             viteza_mb_s=viteza,
             fisier_id=rezultat_record.id,
@@ -578,6 +613,7 @@ class CryptoApp:
             f"{operatie} reusita.\n\n"
             f"Fisier rezultat: {output_path}\n"
             f"Timp: {timp:.4f} s\n"
+            f"Timp/octet: {self._format_time_per_byte(timp_per_octet)}\n"
             f"Memorie: {memorie:.4f} MB\n"
             f"Viteza: {self._format_speed(viteza)}"
         )
@@ -598,6 +634,16 @@ class CryptoApp:
         if framework == "PyCa" and algoritm == "RSA":
             self.last_metrics = CryptoManager.encrypt_pyca_rsa(input_path, output_path, cheie.path_cheie)
             return
+        if framework == "PyCryptodome" and algoritm == "AES":
+            self.last_metrics = CryptoManager.encrypt_pycryptodome_aes(
+                input_path, output_path, cheie.path_cheie
+            )
+            return
+        if framework == "PyCryptodome" and algoritm == "RSA":
+            self.last_metrics = CryptoManager.encrypt_pycryptodome_rsa(
+                input_path, output_path, cheie.path_cheie
+            )
+            return
         raise ValueError("Combinatia framework/algoritm nu este suportata pentru criptare.")
 
     def _run_decrypt(self, framework, algoritm, input_path, output_path, cheie):
@@ -612,6 +658,16 @@ class CryptoApp:
             return
         if framework == "PyCa" and algoritm == "RSA":
             self.last_metrics = CryptoManager.decrypt_pyca_rsa(input_path, output_path, cheie.path_cheie)
+            return
+        if framework == "PyCryptodome" and algoritm == "AES":
+            self.last_metrics = CryptoManager.decrypt_pycryptodome_aes(
+                input_path, output_path, cheie.path_cheie
+            )
+            return
+        if framework == "PyCryptodome" and algoritm == "RSA":
+            self.last_metrics = CryptoManager.decrypt_pycryptodome_rsa(
+                input_path, output_path, cheie.path_cheie
+            )
             return
         raise ValueError("Combinatia framework/algoritm nu este suportata pentru decriptare.")
 
@@ -685,6 +741,7 @@ class CryptoApp:
         for record in perf_db:
             lines.append(
                 f"[{record.framework} | {record.algoritm_nume}] {record.operatie} | Timp: {record.timp_executie:.4f}s | "
+                f"Timp/octet: {self._format_time_per_byte(record.timp_per_octet)} | "
                 f"Memorie: {record.memorie_utilizata:.4f}MB | Viteza: {self._format_speed(record.viteza_mb_s)} | "
                 f"Hash OK: {'Da' if record.hash_verificat else 'Nu'}"
             )
@@ -726,6 +783,11 @@ class CryptoApp:
         if 0 < viteza_mb_s < 0.01:
             return f"{viteza_mb_s * 1024:.2f} KB/s"
         return f"{viteza_mb_s:.2f} MB/s"
+
+    def _format_time_per_byte(self, timp_per_octet):
+        if timp_per_octet == 0:
+            return "0 s/octet"
+        return f"{timp_per_octet:.6e} s/octet"
 
 
 if __name__ == "__main__":

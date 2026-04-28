@@ -15,8 +15,23 @@ from cryptography.hazmat.primitives.asymmetric import padding as asym_padding
 from cryptography.hazmat.primitives.ciphers import Cipher, algorithms, modes
 from cryptography.hazmat.primitives.kdf.pbkdf2 import PBKDF2HMAC
 
+try:
+    from Crypto.Cipher import AES as PyCryptoAES
+    from Crypto.Cipher import PKCS1_OAEP
+    from Crypto.Hash import SHA256 as PyCryptoSHA256
+    from Crypto.Protocol.KDF import PBKDF2 as PyCryptoPBKDF2
+    from Crypto.PublicKey import RSA as PyCryptoRSA
+    from Crypto.Util.Padding import pad as pycrypto_pad, unpad as pycrypto_unpad
+
+    HAS_PYCRYPTODOME = True
+    PYCRYPTODOME_IMPORT_ERROR = None
+except ImportError as exc:
+    HAS_PYCRYPTODOME = False
+    PYCRYPTODOME_IMPORT_ERROR = exc
+
 DEFAULT_OPENSSL_PATH = Path(r"C:\Program Files\OpenSSL-Win64\bin\openssl.exe")
 PYCA_AES_MAGIC = b"PYAES1"
+PYCRYPTODOME_AES_MAGIC = b"PCDAES1"
 HYBRID_MAGIC = b"HYBRID1"
 
 
@@ -25,6 +40,17 @@ class CryptoManager:
     def get_memory_usage():
         process = psutil.Process(os.getpid())
         return process.memory_info().rss / (1024 * 1024)
+
+    @staticmethod
+    def has_pycryptodome():
+        return HAS_PYCRYPTODOME
+
+    @staticmethod
+    def _ensure_pycryptodome_available():
+        if not HAS_PYCRYPTODOME:
+            raise RuntimeError(
+                f"PyCryptodome nu este disponibil in mediu: {PYCRYPTODOME_IMPORT_ERROR}"
+            )
 
     @staticmethod
     def compute_hash(file_path):
@@ -195,6 +221,64 @@ class CryptoManager:
 
             with open(output_file, "wb") as destination:
                 destination.write(plain)
+
+        return CryptoManager._measure(operation)
+
+    @staticmethod
+    def encrypt_pycryptodome_aes(input_file, output_file, password):
+        def operation():
+            CryptoManager._ensure_pycryptodome_available()
+            salt = os.urandom(16)
+            iv = os.urandom(16)
+            key = PyCryptoPBKDF2(
+                password.encode("utf-8"),
+                salt,
+                dkLen=32,
+                count=390000,
+                hmac_hash_module=PyCryptoSHA256,
+            )
+
+            with open(input_file, "rb") as source:
+                plain_bytes = source.read()
+
+            cipher = PyCryptoAES.new(key, PyCryptoAES.MODE_CBC, iv)
+            encrypted = cipher.encrypt(pycrypto_pad(plain_bytes, PyCryptoAES.block_size))
+
+            with open(output_file, "wb") as destination:
+                destination.write(PYCRYPTODOME_AES_MAGIC)
+                destination.write(salt)
+                destination.write(iv)
+                destination.write(encrypted)
+
+        return CryptoManager._measure(operation)
+
+    @staticmethod
+    def decrypt_pycryptodome_aes(input_file, output_file, password):
+        def operation():
+            CryptoManager._ensure_pycryptodome_available()
+            with open(input_file, "rb") as source:
+                magic = source.read(len(PYCRYPTODOME_AES_MAGIC))
+                if magic != PYCRYPTODOME_AES_MAGIC:
+                    raise ValueError(
+                        "Fisierul nu este criptat in formatul PyCryptodome AES asteptat."
+                    )
+
+                salt = source.read(16)
+                iv = source.read(16)
+                encrypted = source.read()
+
+            key = PyCryptoPBKDF2(
+                password.encode("utf-8"),
+                salt,
+                dkLen=32,
+                count=390000,
+                hmac_hash_module=PyCryptoSHA256,
+            )
+            cipher = PyCryptoAES.new(key, PyCryptoAES.MODE_CBC, iv)
+            plain_bytes = pycrypto_unpad(cipher.decrypt(encrypted), PyCryptoAES.block_size)
+
+            with open(output_file, "wb") as destination:
+                destination.write(plain_bytes)
 
         return CryptoManager._measure(operation)
 
@@ -419,6 +503,77 @@ class CryptoManager:
                 encrypted_payload = Path(payload_path).read_bytes()
                 padded = decryptor.update(encrypted_payload) + decryptor.finalize()
                 plain_bytes = unpadder.update(padded) + unpadder.finalize()
+
+                with open(output_file, "wb") as destination:
+                    destination.write(plain_bytes)
+            finally:
+                Path(payload_path).unlink(missing_ok=True)
+
+        return CryptoManager._measure(operation)
+
+    @staticmethod
+    def encrypt_pycryptodome_rsa(input_file, output_file, key_path):
+        def operation():
+            CryptoManager._ensure_pycryptodome_available()
+            with open(key_path, "rb") as key_handle:
+                public_key = PyCryptoRSA.import_key(key_handle.read())
+
+            aes_key = os.urandom(32)
+            iv = os.urandom(16)
+            cipher = PyCryptoAES.new(aes_key, PyCryptoAES.MODE_CBC, iv)
+
+            with open(input_file, "rb") as source:
+                plain_bytes = source.read()
+
+            encrypted_payload = cipher.encrypt(pycrypto_pad(plain_bytes, PyCryptoAES.block_size))
+            wrapped_secret = PKCS1_OAEP.new(public_key, hashAlgo=PyCryptoSHA256).encrypt(
+                aes_key + iv
+            )
+
+            with tempfile.NamedTemporaryFile(delete=False) as payload_handle:
+                payload_handle.write(encrypted_payload)
+                payload_path = payload_handle.name
+
+            try:
+                metadata = {
+                    "algorithm": "RSA",
+                    "framework": "PyCryptodome",
+                    "mode": "hybrid",
+                    "wrapped_key": base64.b64encode(wrapped_secret).decode("ascii"),
+                }
+                CryptoManager._write_hybrid_package(output_file, metadata, payload_path)
+            finally:
+                Path(payload_path).unlink(missing_ok=True)
+
+        return CryptoManager._measure(operation)
+
+    @staticmethod
+    def decrypt_pycryptodome_rsa(input_file, output_file, key_path):
+        def operation():
+            CryptoManager._ensure_pycryptodome_available()
+            with open(key_path, "rb") as key_handle:
+                private_key = PyCryptoRSA.import_key(key_handle.read())
+
+            with tempfile.NamedTemporaryFile(delete=False) as payload_handle:
+                payload_path = payload_handle.name
+
+            try:
+                metadata = CryptoManager._extract_hybrid_package(input_file, payload_path)
+                wrapped_secret = base64.b64decode(metadata["wrapped_key"])
+                secret_blob = PKCS1_OAEP.new(
+                    private_key, hashAlgo=PyCryptoSHA256
+                ).decrypt(wrapped_secret)
+
+                aes_key = secret_blob[:32]
+                iv = secret_blob[32:48]
+                if len(aes_key) != 32 or len(iv) != 16:
+                    raise ValueError("Cheia RSA decriptata este invalida.")
+
+                encrypted_payload = Path(payload_path).read_bytes()
+                cipher = PyCryptoAES.new(aes_key, PyCryptoAES.MODE_CBC, iv)
+                plain_bytes = pycrypto_unpad(
+                    cipher.decrypt(encrypted_payload), PyCryptoAES.block_size
+                )
 
                 with open(output_file, "wb") as destination:
                     destination.write(plain_bytes)

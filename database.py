@@ -46,6 +46,7 @@ class Performanta(Base):
     framework = Column(String, nullable=False)
     operatie = Column(String, nullable=False)
     timp_executie = Column(Float, default=0.0)
+    timp_per_octet = Column(Float, default=0.0)
     memorie_utilizata = Column(Float, default=0.0)
     viteza_mb_s = Column(Float, default=0.0)
     fisier_id = Column(Integer, ForeignKey("fisiere.id"))
@@ -71,6 +72,7 @@ def _add_missing_columns():
             "algoritm_ultim": "TEXT",
         },
         "performante": {
+            "timp_per_octet": "FLOAT DEFAULT 0.0",
             "cheie_id": "INTEGER",
             "hash_verificat": "INTEGER DEFAULT 0",
             "detalii": "TEXT",
@@ -212,6 +214,7 @@ def record_performance(
     framework,
     operatie,
     timp_executie,
+    timp_per_octet,
     memorie_utilizata,
     viteza_mb_s,
     fisier_id,
@@ -224,6 +227,7 @@ def record_performance(
         framework=framework,
         operatie=operatie,
         timp_executie=timp_executie,
+        timp_per_octet=timp_per_octet,
         memorie_utilizata=memorie_utilizata,
         viteza_mb_s=viteza_mb_s,
         fisier_id=fisier_id,
