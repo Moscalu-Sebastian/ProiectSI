@@ -1,6 +1,6 @@
 from pathlib import Path
 
-from sqlalchemy import Column, Float, ForeignKey, Integer, String, Text, create_engine, text
+from sqlalchemy import Column, Float, ForeignKey, Integer, String, Text, create_engine, func, text
 from sqlalchemy.orm import declarative_base, sessionmaker
 
 Base = declarative_base()
@@ -48,6 +48,7 @@ class Performanta(Base):
     operatie = Column(String, nullable=False)
     timp_executie = Column(Float, default=0.0)
     timp_per_octet = Column(Float, default=0.0)
+    timp_subproces = Column(Float, default=0.0)
     memorie_utilizata = Column(Float, default=0.0)
     viteza_mb_s = Column(Float, default=0.0)
     fisier_id = Column(Integer, ForeignKey("fisiere.id"))
@@ -74,6 +75,7 @@ def _add_missing_columns():
         },
         "performante": {
             "timp_per_octet": "FLOAT DEFAULT 0.0",
+            "timp_subproces": "FLOAT DEFAULT 0.0",
             "cheie_id": "INTEGER",
             "hash_verificat": "INTEGER DEFAULT 0",
             "detalii": "TEXT",
@@ -217,6 +219,7 @@ def record_performance(
     operatie,
     timp_executie,
     timp_per_octet,
+    timp_subproces,
     memorie_utilizata,
     viteza_mb_s,
     fisier_id,
@@ -231,6 +234,7 @@ def record_performance(
         operatie=operatie,
         timp_executie=timp_executie,
         timp_per_octet=timp_per_octet,
+        timp_subproces=timp_subproces,
         memorie_utilizata=memorie_utilizata,
         viteza_mb_s=viteza_mb_s,
         fisier_id=fisier_id,
@@ -244,6 +248,22 @@ def record_performance(
     session.commit()
     session.refresh(record)
     return record
+
+
+def get_average_times_by_pair():
+    return (
+        session.query(
+            Performanta.framework,
+            Performanta.algoritm_nume,
+            func.count(Performanta.id).label("numar_inregistrari"),
+            func.avg(Performanta.timp_executie).label("timp_mediu"),
+            func.avg(Performanta.timp_per_octet).label("timp_per_octet_mediu"),
+            func.avg(Performanta.timp_subproces).label("timp_subproces_mediu"),
+        )
+        .group_by(Performanta.framework, Performanta.algoritm_nume)
+        .order_by(Performanta.framework.asc(), Performanta.algoritm_nume.asc())
+        .all()
+    )
 
 
 init_db()

@@ -64,13 +64,24 @@ class CryptoManager:
         return digest.finalize().hex()
 
     @staticmethod
-    def _measure(operation):
+    def measure_subprocess_overhead():
+        command = [os.environ.get("COMSPEC", "cmd.exe"), "/c", "exit", "0"]
+        start = time.perf_counter()
+        subprocess.run(command, capture_output=True)
+        return time.perf_counter() - start
+
+    @staticmethod
+    def _measure(operation, subprocess_count=0):
         mem_start = CryptoManager.get_memory_usage()
+        subprocess_overhead = sum(
+            CryptoManager.measure_subprocess_overhead() for _ in range(subprocess_count)
+        )
         start = time.perf_counter()
         operation()
         elapsed = time.perf_counter() - start
+        adjusted_elapsed = max(0.0, elapsed - subprocess_overhead)
         mem_used = max(0.0, CryptoManager.get_memory_usage() - mem_start)
-        return elapsed, mem_used
+        return adjusted_elapsed, mem_used, subprocess_overhead
 
     @staticmethod
     def _resolve_openssl_path():
@@ -153,7 +164,7 @@ class CryptoManager:
                 ]
             )
 
-        return CryptoManager._measure(operation)
+        return CryptoManager._measure(operation, subprocess_count=1)
 
     @staticmethod
     def decrypt_openssl_aes(input_file, output_file, password):
@@ -173,7 +184,7 @@ class CryptoManager:
                 ]
             )
 
-        return CryptoManager._measure(operation)
+        return CryptoManager._measure(operation, subprocess_count=1)
 
     @staticmethod
     def encrypt_pyca_aes(input_file, output_file, password):
@@ -368,7 +379,7 @@ class CryptoManager:
                 }
                 CryptoManager._write_hybrid_package(output_file, metadata, payload_path)
 
-        return CryptoManager._measure(operation)
+        return CryptoManager._measure(operation, subprocess_count=2)
 
     @staticmethod
     def decrypt_openssl_rsa(input_file, output_file, key_path):
@@ -421,7 +432,7 @@ class CryptoManager:
                     ]
                 )
 
-        return CryptoManager._measure(operation)
+        return CryptoManager._measure(operation, subprocess_count=2)
 
     @staticmethod
     def encrypt_pyca_rsa(input_file, output_file, key_path):

@@ -10,6 +10,7 @@ from database import (
     FisierManagement,
     Performanta,
     find_file_by_path,
+    get_average_times_by_pair,
     list_keys,
     record_performance,
     register_managed_file,
@@ -136,9 +137,11 @@ class CryptoApp:
 
         files_tab = ttk.Frame(notebook, padding=8)
         perf_tab = ttk.Frame(notebook, padding=8)
+        averages_tab = ttk.Frame(notebook, padding=8)
         keys_tab = ttk.Frame(notebook, padding=8)
         notebook.add(files_tab, text="Fisiere")
         notebook.add(perf_tab, text="Performante")
+        notebook.add(averages_tab, text="Medii")
         notebook.add(keys_tab, text="Chei")
 
         self.files_tree = self._create_tree(
@@ -164,6 +167,7 @@ class CryptoApp:
                 "operatie",
                 "timp",
                 "timp_octet",
+                "subproces",
                 "memorie",
                 "viteza",
                 "hash_ok",
@@ -175,9 +179,30 @@ class CryptoApp:
                 "operatie": 100,
                 "timp": 110,
                 "timp_octet": 120,
+                "subproces": 110,
                 "memorie": 110,
                 "viteza": 110,
                 "hash_ok": 90,
+            },
+        )
+
+        self.averages_tree = self._create_tree(
+            averages_tab,
+            (
+                "framework",
+                "algoritm",
+                "numar",
+                "timp_mediu",
+                "timp_octet_mediu",
+                "subproces_mediu",
+            ),
+            {
+                "framework": 130,
+                "algoritm": 110,
+                "numar": 80,
+                "timp_mediu": 120,
+                "timp_octet_mediu": 150,
+                "subproces_mediu": 130,
             },
         )
 
@@ -238,6 +263,7 @@ class CryptoApp:
     def refresh_tables(self):
         self._fill_files_table()
         self._fill_performance_table()
+        self._fill_averages_table()
         self._fill_keys_table()
 
     def _fill_files_table(self):
@@ -272,9 +298,26 @@ class CryptoApp:
                     record.operatie,
                     f"{record.timp_executie:.4f} s",
                     self._format_time_per_byte(record.timp_per_octet),
+                    f"{record.timp_subproces:.6f} s",
                     f"{record.memorie_utilizata:.4f} MB",
                     self._format_speed(record.viteza_mb_s),
                     "Da" if record.hash_verificat else "Nu",
+                ),
+            )
+
+    def _fill_averages_table(self):
+        self._clear_tree(self.averages_tree)
+        for row in get_average_times_by_pair():
+            self.averages_tree.insert(
+                "",
+                "end",
+                values=(
+                    row.framework,
+                    row.algoritm_nume,
+                    row.numar_inregistrari,
+                    f"{(row.timp_mediu or 0.0):.4f} s",
+                    self._format_time_per_byte(row.timp_per_octet_mediu or 0.0),
+                    f"{(row.timp_subproces_mediu or 0.0):.6f} s",
                 ),
             )
 
@@ -575,10 +618,16 @@ class CryptoApp:
             status_rezultat = "Decriptat"
 
         dimensiune = os.path.getsize(filepath)
-        timp, memorie = self.last_metrics
+        timp, memorie, timp_subproces = self.last_metrics
         viteza = (dimensiune / (1024 * 1024)) / timp if timp > 0 else 0.0
         timp_per_octet = timp / dimensiune if dimensiune > 0 else 0.0
         hash_curent = self.calculeaza_hash(output_path)
+
+        if framework == "OpenSSL" and timp_subproces > 0:
+            detalii = (
+                f"{detalii} Timp subprocess scazut din calculul final: "
+                f"{timp_subproces:.6f} s."
+            )
 
         rezultat_record = register_managed_file(
             output_path,
@@ -594,6 +643,7 @@ class CryptoApp:
             operatie=operatie,
             timp_executie=timp,
             timp_per_octet=timp_per_octet,
+            timp_subproces=timp_subproces,
             memorie_utilizata=memorie,
             viteza_mb_s=viteza,
             fisier_id=rezultat_record.id,
@@ -618,6 +668,8 @@ class CryptoApp:
             f"Memorie: {memorie:.4f} MB\n"
             f"Viteza: {self._format_speed(viteza)}"
         )
+        if framework == "OpenSSL" and timp_subproces > 0:
+            mesaj += f"\nTimp subprocess scazut: {timp_subproces:.6f} s"
         if operatie == "Decriptare":
             mesaj += f"\nIntegritate hash: {'OK' if hash_verificat else 'NEVALIDATA'}"
         messagebox.showinfo("Succes", mesaj)
@@ -745,6 +797,7 @@ class CryptoApp:
                 f"Fisier: {nume} | "
                 f"[{record.framework} | {record.algoritm_nume}] {record.operatie} | Timp: {record.timp_executie:.4f}s | "
                 f"Timp/octet: {self._format_time_per_byte(record.timp_per_octet)} | "
+                f"Subproces: {record.timp_subproces:.6f}s | "
                 f"Memorie: {record.memorie_utilizata:.4f}MB | Viteza: {self._format_speed(record.viteza_mb_s)} | "
                 f"Hash OK: {'Da' if record.hash_verificat else 'Nu'}"
             )

@@ -105,6 +105,7 @@ Pentru fiecare operatie de criptare sau decriptare sunt masurate si salvate in b
 
 - `timp_executie` - timpul total al operatiei;
 - `timp_per_octet` - timpul raportat la dimensiunea fisierului;
+- `timp_subproces` - timpul masurat pentru overhead-ul de lansare al subprocesului;
 - `memorie_utilizata` - memoria RAM consumata;
 - `viteza_mb_s` - viteza de procesare in MB/s;
 - `hash_verificat` - daca integritatea a fost confirmata sau nu;
@@ -116,6 +117,13 @@ Aceasta parte este utila pentru comparatia dintre:
 - `PyCa`
 - `PyCryptodome`
 
+Aplicatia calculeaza si afiseaza:
+
+- timpul mediu pentru fiecare pereche `framework + algoritm`;
+- timpul mediu per octet pentru fiecare pereche `framework + algoritm`.
+
+Pentru operatiile `OpenSSL`, proiectul masoara separat timpul overhead-ului de subproces si il scade din timpul final folosit la analiza de performanta. Astfel comparatia dintre `OpenSSL` si framework-urile native Python este mai corecta.
+
 ## Interfata grafica
 Interfata este dezvoltata in `tkinter` si contine:
 
@@ -123,7 +131,7 @@ Interfata este dezvoltata in `tkinter` si contine:
 - configurare framework, algoritm si cheie;
 - administrare chei;
 - butoane pentru criptare, decriptare si verificare hash;
-- tabele pentru fisiere, performante si chei;
+- tabele pentru fisiere, performante, medii si chei;
 - mesaje de status si ferestre de debug.
 
 Utilizatorul poate face dublu-click in tabele pentru a selecta rapid un fisier sau o cheie.
@@ -192,6 +200,7 @@ Contine rezultatele operatiilor:
 - `operatie`
 - `timp_executie`
 - `timp_per_octet`
+- `timp_subproces`
 - `memorie_utilizata`
 - `viteza_mb_s`
 - `fisier_id`
@@ -344,7 +353,8 @@ La pornire, aplicatia:
 6. Apasa `Cripteaza`.
 7. Selecteaza fisierul rezultat si apasa `Decripteaza`.
 8. Foloseste `Verifica hash` pentru a verifica integritatea.
-9. Consulta tabelul de performante pentru comparatie.
+9. Consulta tabelul de performante pentru rezultatele individuale.
+10. Consulta tabelul `Medii` pentru comparatia agregata pe fiecare pereche `framework + algoritm`.
 
 ### Reguli importante
 - pentru `AES` trebuie selectata o cheie de tip `secret`;
@@ -359,7 +369,7 @@ Acest proiect demonstreaza:
 - compararea intre mai multe framework-uri de criptare;
 - managementul cheilor si fisierelor criptate;
 - validarea integritatii prin hash;
-- analiza de performanta la nivel de timp, memorie, viteza si timp per octet.
+- analiza de performanta la nivel de timp, memorie, viteza, timp per octet si medii pe perechi framework-algoritm.
 
 ## Posibile extensii
 Proiectul poate fi extins usor cu:
