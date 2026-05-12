@@ -598,6 +598,7 @@ class CryptoApp:
             viteza_mb_s=viteza,
             fisier_id=rezultat_record.id,
             algoritm_nume=algoritm,
+            nume_fisier=Path(filepath).name,
             cheie_id=cheie.id,
             hash_verificat=hash_verificat,
             detalii=detalii,
@@ -739,7 +740,9 @@ class CryptoApp:
 
         lines = []
         for record in perf_db:
+            nume = record.nume_fisier if record.nume_fisier else "Necunoscut"
             lines.append(
+                f"Fisier: {nume} | "
                 f"[{record.framework} | {record.algoritm_nume}] {record.operatie} | Timp: {record.timp_executie:.4f}s | "
                 f"Timp/octet: {self._format_time_per_byte(record.timp_per_octet)} | "
                 f"Memorie: {record.memorie_utilizata:.4f}MB | Viteza: {self._format_speed(record.viteza_mb_s)} | "

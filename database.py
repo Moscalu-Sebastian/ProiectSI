@@ -43,6 +43,7 @@ class Performanta(Base):
     __tablename__ = "performante"
 
     id = Column(Integer, primary_key=True)
+    nume_fisier = Column(String)
     framework = Column(String, nullable=False)
     operatie = Column(String, nullable=False)
     timp_executie = Column(Float, default=0.0)
@@ -76,6 +77,7 @@ def _add_missing_columns():
             "cheie_id": "INTEGER",
             "hash_verificat": "INTEGER DEFAULT 0",
             "detalii": "TEXT",
+            "nume_fisier": "TEXT"
         },
     }
 
@@ -219,6 +221,7 @@ def record_performance(
     viteza_mb_s,
     fisier_id,
     algoritm_nume,
+    nume_fisier=None,
     cheie_id=None,
     hash_verificat=False,
     detalii=None,
@@ -232,6 +235,7 @@ def record_performance(
         viteza_mb_s=viteza_mb_s,
         fisier_id=fisier_id,
         algoritm_nume=algoritm_nume,
+        nume_fisier=nume_fisier,
         cheie_id=cheie_id,
         hash_verificat=1 if hash_verificat else 0,
         detalii=detalii,
